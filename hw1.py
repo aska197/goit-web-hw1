@@ -3,17 +3,47 @@ from collections import UserDict
 from datetime import datetime, timedelta
 import pickle
 
-class Field:
-    def __init__(self, value):
-        self.value = value
+class Field(ABC):
+    @abstractmethod
+    def display_info(self):
+        pass
 
-    def __str__(self):
-        return str(self.value)
+class InfoDisplay(ABC):
+    @abstractmethod
+    def display_all_users(self):
+        pass
+
+    @abstractmethod
+    def display_help(self):
+        pass
+
+from abc import ABC, abstractmethod
+
+class UserInterface(ABC):
+    @abstractmethod
+    def print_message(self, message):
+        pass
+
+    @abstractmethod
+    def get_user_input(self):
+        pass
 
 class Name(Field):
     def __init__(self, value):
         self.value = value
 
+    def display_info(self):
+        return str(self.value)
+
+class Phone(Field):
+    def __init__(self, value):
+        if not value.isdigit() or len(value) != 10:
+            raise ValueError("Phone number must contain 10 digits.")
+        self.value = value
+
+    def display_info(self):
+        return str(self.value)
+    
 class Birthday(Field):
     def __init__(self, value):
         try:
@@ -21,13 +51,35 @@ class Birthday(Field):
         except ValueError:
             raise ValueError('Invalid date format. Use DD.MM.YYYY')
 
-class Phone(Field):
-    def __init__(self, value):
-        if not value.isdigit() or len(value) != 10:
-            raise ValueError("Phone number must contain 10 digits.")
-        super().__init__(value)
+    def display_info(self):
+        return self.value.strftime('%d.%m.%Y')
 
-class Record:
+class AbstractRecord(ABC):
+    @abstractmethod
+    def add_phone(self, phone):
+        pass
+
+    @abstractmethod
+    def add_birthday(self, birthday):
+        pass
+
+    @abstractmethod
+    def remove_phone(self, phone):
+        pass
+
+    @abstractmethod
+    def edit_phone(self, old_phone, new_phone):
+        pass
+
+    @abstractmethod
+    def find_phone(self, phone):
+        pass
+
+    @abstractmethod
+    def display_info(self):
+        pass
+
+class Record(AbstractRecord):
     def __init__(self, name):
         self.name = Name(name)
         self.phones = []
@@ -47,8 +99,11 @@ class Record:
         self.phones = [p for p in self.phones if str(p) != phone]
 
     def edit_phone(self, old_phone, new_phone):
-        self.remove_phone(old_phone)
-        self.add_phone(new_phone)
+        for i, p in enumerate(self.phones):
+            if str(p) == old_phone:
+                self.phones[i] = Phone(new_phone)
+                return
+        raise ValueError(f'Phone number {old_phone} not found for editing.')
 
     def find_phone(self, phone):
         for p in self.phones:
@@ -56,12 +111,15 @@ class Record:
                 return p
         return None
 
-    def __str__(self):
-        phones_str = '; '.join(str(p) for p in self.phones)
+    def display_info(self):
+        phones_str = '; '.join(str(phone.value) for phone in self.phones)
         birthday_str = str(self.birthday.value.strftime('%d.%m.%Y')) if self.birthday else 'Not Set'
-        return f"Contact name: {self.name}, phones: {phones_str}, birthday: {birthday_str}"
+        return f"Contact name: {self.name.value}, phones: {phones_str}, birthday: {birthday_str}"
 
-class AddressBook(UserDict):
+    def __str__(self):
+        return self.display_info()
+
+class AddressBook(UserDict, InfoDisplay):
     def add_record(self, record):
         self.data[record.name.value] = record
 
@@ -99,14 +157,13 @@ class AddressBook(UserDict):
 
         return upcoming_birthdays
 
-class UserInterface(ABC):
-    @abstractmethod
-    def print_message(self, message):
-        pass
-
-    @abstractmethod
-    def get_user_input(self):
-        pass
+    def display_all_users(self):
+        if self.data:
+            print('All contacts:')
+            for name, record in self.data.items():
+                print(record)
+        else:
+            print('No contacts found.')
 
 class ConsoleInterface(UserInterface):
     def print_message(self, message):
@@ -114,6 +171,18 @@ class ConsoleInterface(UserInterface):
 
     def get_user_input(self):
         return input('Enter a command: ')
+    
+    def display_help(self):
+        print('List of available commands:')
+        print('add [name] [phone number]: Add a new contact with the given name and phone number.')
+        print('change phone [name] [new phone number]: Change the phone number for the contact with the given name.')
+        print('phone [name]: Display the phone number for the contact with the given name.')
+        print('all: Display information about all contacts.')
+        print('add birthday [name] [birthday date]: Add a birthday for the contact with the given name.')
+        print('show birthday [name]: Display the birthday for the contact with the given name.')
+        print('birthdays: Display upcoming birthdays for the next week.')
+        print('exit: Save data and exit the application.')
+
 
 def input_error(func):
     def inner(*args, **kwargs):
@@ -249,12 +318,7 @@ def handle_phone_command(args, book):
         print(str(e))
 
 def handle_all_command(book):
-    if book.data:
-        print('All contacts:')
-        for name, record in book.data.items():
-            print(record)
-    else:
-        print('No contacts found.')
+    book.display_all_users()
 
 def save_data(book, filename='addressbook.pk1'):
     with open(filename, 'wb') as f:
@@ -310,6 +374,9 @@ class Application:
             elif command == 'birthdays':
                 birthdays(args, self.book)
 
+            elif command == 'help':
+                self.ui.display_help()
+
             else:
                 self.ui.print_message('Invalid command.')
 
@@ -317,4 +384,4 @@ if __name__ == '__main__':
     ui = ConsoleInterface()
     app = Application(ui)
     app.run()
-
+       
