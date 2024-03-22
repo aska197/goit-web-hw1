@@ -120,6 +120,9 @@ class Record(AbstractRecord):
         return self.display_info()
 
 class AddressBook(UserDict, InfoDisplay):
+    def __init__(self):
+        super().__init__()
+
     def add_record(self, record):
         self.data[record.name.value] = record
 
@@ -164,6 +167,16 @@ class AddressBook(UserDict, InfoDisplay):
                 print(record)
         else:
             print('No contacts found.')
+
+    def display_help(self):
+        print('No help available for the address book.')
+
+    def load_data(filename='addressbook.pk1'):
+        try:
+            with open(filename, 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            return AddressBook()
 
 class ConsoleInterface(UserInterface):
     def print_message(self, message):
